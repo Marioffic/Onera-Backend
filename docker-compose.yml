@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # Service 1: The AI "Brains" - Orchestrator
+  automation-manager:
+    build: ./automation-manager
+    volumes:
+      - ./automation-manager:/app
+    environment:
+      - DATA_MANAGER_URL=http://user-data-manager:8002
+      - PREDICTION_MODULE_URL=http://prediction-module:8003
+      - ACTION_MODULE_URL=http://action-module:8004
+    restart: unless-stopped
+    ports:
+      # Expose 8001 for direct testing if needed
+      - "8001:8001"
+
+  # Service 2: The User Data Service
+  user-data-manager:
+    build: ./user-data-manager
+    volumes:
+      - ./user-data-manager:/app
+      # Persistent volume for the user's data
+      - user_data_volume:/app/data
+    restart: unless-stopped
+    ports:
+      # Expose 8002 for direct testing
+      - "8002:8002"
+
+  # Service 3: The Prediction Service
+  prediction-module:
+    build: ./prediction-module
+    volumes:
+      - ./prediction-module:/app
+      # Persistent volume for the trained models
+      - model_volume:/app/models
+    environment:
+      - DATA_MANAGER_URL=http://user-data-manager:8002
+    restart: unless-stopped
+    ports:
+      # Expose 8003 for direct testing
+      - "8003:8003"
+
+  # Service 4: The Action Module (New)
+  action-module:
+    build: ./action-module
+    volumes:
+      - ./action-module:/app
+    environment:
+      - DEVICE_MANAGER_URL=http://device-manager:8005
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+
+  # Service 5: The Device Manager (New)
+  device-manager:
+    build: ./device-manager
+    volumes:
+      - ./device-manager:/app
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+
+  # Service 6: The API Gateway (Entry Point)
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      # This is the *only* port the user's local-app needs to know.
+      - "5000:5000"
+    volumes:
+      - ./api-gateway:/app
+    environment:
+      - AUTOMATION_MANAGER_URL=http://automation-manager:8001
+      - PREDICTION_MODULE_URL=http://prediction-module:8003
+      - ACTION_MODULE_URL=http://action-module:8004
+      - DEVICE_MANAGER_URL=http://device-manager:8005
+    depends_on:
+      - automation-manager
+      - user-data-manager
+      - prediction-module
+      - action-module
+      - device-manager
+    restart: unless-stopped
+
+# Define the named volumes for persistent data
+volumes:
+  user_data_volume:
+  model_volume:
+
+
